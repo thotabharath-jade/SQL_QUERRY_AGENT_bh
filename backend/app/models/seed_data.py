@@ -1,9 +1,12 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric
 from sqlalchemy.sql import func
-from app.core.database import Base
+from sqlalchemy.orm import declarative_base
+
+# Separate Base for target/demo DB models (not managed by Alembic)
+SeedBase = declarative_base()
 
 
-class Department(Base):
+class Department(SeedBase):
     __tablename__ = "departments"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -12,7 +15,7 @@ class Department(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class Employee(Base):
+class Employee(SeedBase):
     __tablename__ = "employees"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -24,7 +27,7 @@ class Employee(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class Product(Base):
+class Product(SeedBase):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -35,7 +38,7 @@ class Product(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class Order(Base):
+class Order(SeedBase):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)

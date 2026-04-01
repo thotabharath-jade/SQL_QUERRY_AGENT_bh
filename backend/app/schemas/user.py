@@ -1,23 +1,28 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List
 from datetime import datetime
 
 
+# User Schemas
 class UserBase(BaseModel):
     email: EmailStr
+    full_name: Optional[str] = None
 
 
-class UserCreate(UserBase):
-    password: str
+class UserCreate(BaseModel):
+    email: str
+    password: str = Field(..., max_length=30)
+    full_name: Optional[str] = None
 
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., max_length=30)
 
 
 class UserResponse(UserBase):
     id: int
+    is_active: bool
     created_at: datetime
 
     class Config:
@@ -26,8 +31,62 @@ class UserResponse(UserBase):
 
 class Token(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
 
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None
+
+
+# Query History Schemas
+class QueryHistoryBase(BaseModel):
+    natural_question: str
+
+
+class QueryHistoryCreate(QueryHistoryBase):
+    generated_sql: str
+    execution_result: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class QueryHistoryResponse(QueryHistoryBase):
+    id: int
+    user_id: int
+    generated_sql: str
+    execution_result: Optional[str]
+    error_message: Optional[str]
+    is_bookmarked: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Query Request/Response Schemas
+class QueryRequest(BaseModel):
+    question: str
+    connection_string: Optional[str] = None
+
+
+class SchemaRequest(BaseModel):
+    connection_string: Optional[str] = None
+
+
+class QueryResponse(BaseModel):
+    sql: str
+    explanation: str
+    result: Optional[List[dict]] = None
+    error: Optional[str] = None
+    columns: Optional[List[str]] = None
+
+
+# Schema Introspection
+class ColumnInfo(BaseModel):
+    table_name: str
+    column_name: str
+    data_type: str
+    is_nullable: str
+
+
+class SchemaResponse(BaseModel):
+    tables: List[dict]

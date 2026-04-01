@@ -1,21 +1,62 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
-engine = create_engine(
-    settings.DATABASE_URL,
+# Engine/session for App DB (auth, profiles, query history)
+app_engine = create_async_engine(
+    settings.APP_DATABASE_URL,
+    echo=False,
     pool_pre_ping=True,
-    pool_recycle=3600,
+    pool_size=10,
+    max_overflow=20
+)
+AppSessionLocal = async_sessionmaker(
+    app_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# Dependency for App/Auth DB
+async def get_app_db():
+    async with AppSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Dynamic session generator for Target DB
+async def get_target_db_session(connection_string: str = None) -> AsyncSession:
+    """
+    Creates and returns an AsyncSession for a specific target database.
+    If connection_string is None, falls back to DEFAULT_TARGET_DB_URL.
+    NOTE: Caller is responsible for awaiting session.close() when done.
+    """
+    target_url = connection_string or settings.DEFAULT_TARGET_DB_URL
+    
+    # Ensure async driver
+    if target_url.startswith("mysql://") or target_url.startswith("mysql+pymysql://"):
+        target_url = target_url.replace("mysql://", "mysql+aiomysql://").replace("mysql+pymysql://", "mysql+aiomysql://")
+        
+    engine = create_async_engine(
+        target_url,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=3600
+    )
+    TargetSessionLocal = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False
+    )
+    
+    return TargetSessionLocal(), engine
+
+async def init_db():
+    async with app_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

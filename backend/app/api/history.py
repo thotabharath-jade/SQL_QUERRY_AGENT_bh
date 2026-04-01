@@ -1,60 +1,105 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
+from typing import List, Optional
 
-from app.core.database import get_db
+from app.core.database import get_app_db
 from app.core.security import get_current_user
 from app.models.user import User
-from app.schemas.query_history import QueryHistoryResponse, QueryHistoryCreate
+from app.models.query_history import QueryHistory
+from app.schemas.user import QueryHistoryResponse
 
-router = APIRouter(prefix="/history", tags=["Query History"])
+router = APIRouter(prefix="/api/history", tags=["History"])
 
 
 @router.get("/", response_model=List[QueryHistoryResponse])
 async def get_history(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    bookmarked_only: bool = Query(False),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_app_db)
 ):
-    from app.models.query_history import QueryHistory
-    history = db.query(QueryHistory).filter(
+    """Get query history for current user"""
+    query = select(QueryHistory).where(
         QueryHistory.user_id == current_user.id
-    ).order_by(QueryHistory.created_at.desc()).all()
+    ).order_by(desc(QueryHistory.created_at))
+    
+    if bookmarked_only:
+        query = query.where(QueryHistory.is_bookmarked == True)
+    
+    query = query.offset(skip).limit(limit)
+    
+    result = await db.execute(query)
+    history = result.scalars().all()
+    
     return history
 
 
-@router.get("/bookmarked", response_model=List[QueryHistoryResponse])
-async def get_bookmarked(
+@router.get("/{history_id}", response_model=QueryHistoryResponse)
+async def get_history_item(
+    history_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_app_db)
 ):
-    from app.models.query_history import QueryHistory
-    history = db.query(QueryHistory).filter(
-        QueryHistory.user_id == current_user.id,
-        QueryHistory.is_bookmarked == True
-    ).order_by(QueryHistory.created_at.desc()).all()
+    """Get a specific history item"""
+    result = await db.execute(
+        select(QueryHistory).where(
+            QueryHistory.id == history_id,
+            QueryHistory.user_id == current_user.id
+        )
+    )
+    history = result.scalar_one_or_none()
+    
+    if not history:
+        raise HTTPException(status_code=404, detail="History item not found")
+    
     return history
 
 
-@router.post("/{history_id}/bookmark", response_model=QueryHistoryResponse)
+@router.post("/{history_id}/bookmark")
 async def toggle_bookmark(
     history_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_app_db)
 ):
-    from app.models.query_history import QueryHistory
-    history_item = db.query(QueryHistory).filter(
-        QueryHistory.id == history_id,
-        QueryHistory.user_id == current_user.id
-    ).first()
-    
-    if not history_item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Query history not found"
+    """Toggle bookmark status for a history item"""
+    result = await db.execute(
+        select(QueryHistory).where(
+            QueryHistory.id == history_id,
+            QueryHistory.user_id == current_user.id
         )
+    )
+    history = result.scalar_one_or_none()
     
-    history_item.is_bookmarked = not history_item.is_bookmarked
-    db.commit()
-    db.refresh(history_item)
-    return history_item
+    if not history:
+        raise HTTPException(status_code=404, detail="History item not found")
+    
+    history.is_bookmarked = not history.is_bookmarked
+    await db.commit()
+    
+    return {"bookmarked": history.is_bookmarked}
+
+
+@router.delete("/{history_id}")
+async def delete_history_item(
+    history_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_app_db)
+):
+    """Delete a history item"""
+    result = await db.execute(
+        select(QueryHistory).where(
+            QueryHistory.id == history_id,
+            QueryHistory.user_id == current_user.id
+        )
+    )
+    history = result.scalar_one_or_none()
+    
+    if not history:
+        raise HTTPException(status_code=404, detail="History item not found")
+    
+    await db.delete(history)
+    await db.commit()
+    
+    return {"message": "History item deleted"}

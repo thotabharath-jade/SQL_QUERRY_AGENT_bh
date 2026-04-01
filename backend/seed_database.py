@@ -1,30 +1,31 @@
 """
-Manual seed script for the database.
-Run this after migrations to populate sample data.
+Manual seed script for the DEFAULT TARGET database (sql_agent_db).
+Run this after setup to populate sample data.
 
 Usage:
     python seed_database.py
 """
 import pymysql
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
-from app.core.database import SessionLocal, engine, Base
 from app.core.config import settings
+from app.models.seed_data import SeedBase
 
-# Import all models so SQLAlchemy knows about them
-from app.models.seed_data import Department, Employee, Product, Order
+
+def get_sync_url(async_url: str) -> str:
+    """Convert async URL to sync URL for seeding."""
+    return async_url.replace("+aiomysql", "+pymysql")
 
 
 def ensure_database_exists():
     """Create the target database if it doesn't exist."""
-    url = make_url(settings.DATABASE_URL)
+    url = make_url(get_sync_url(settings.DEFAULT_TARGET_DB_URL))
     database_name = url.database
     if not database_name:
-        raise ValueError("DATABASE_URL must include a database name")
+        raise ValueError("DEFAULT_TARGET_DB_URL must include a database name")
 
     print(f"Ensuring database '{database_name}' exists...")
 
-    # pymysql connect to server (without database)
     tmp_connection = pymysql.connect(
         host=url.host or "localhost",
         port=url.port or 3306,
@@ -121,32 +122,30 @@ def seed_orders(db):
     print(f"Inserted {len(orders)} orders")
 
 
-def create_tables():
-    """Create all tables if they don't exist."""
-    print("Creating tables...")
-    Base.metadata.create_all(bind=engine)
-    print("Tables created successfully.")
-
-
 def main():
     ensure_database_exists()
-    create_tables()
 
-    db = SessionLocal()
-    try:
-        print("Starting database seeding...")
-        seed_departments(db)
-        seed_employees(db)
-        seed_products(db)
-        seed_orders(db)
-        db.commit()
-        print("Database seeding completed successfully!")
-    except Exception as e:
-        db.rollback()
-        print(f"Error during seeding: {e}")
-        raise
-    finally:
-        db.close()
+    sync_url = get_sync_url(settings.DEFAULT_TARGET_DB_URL)
+    engine = create_engine(sync_url, echo=False)
+
+    # Create seed tables in the target DB
+    SeedBase.metadata.create_all(bind=engine)
+    print("Seed tables created.")
+
+    from sqlalchemy.orm import Session
+    with Session(engine) as db:
+        try:
+            print("Starting database seeding...")
+            seed_departments(db)
+            seed_employees(db)
+            seed_products(db)
+            seed_orders(db)
+            db.commit()
+            print("Database seeding completed successfully!")
+        except Exception as e:
+            db.rollback()
+            print(f"Error during seeding: {e}")
+            raise
 
 
 if __name__ == "__main__":

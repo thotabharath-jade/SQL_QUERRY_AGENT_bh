@@ -12,13 +12,15 @@ from app.core.database import Base
 from app.core.config import settings
 from app.models.user import User
 from app.models.query_history import QueryHistory
-from app.models.seed_data import Department, Employee, Product, Order
 
 # this is the Alembic Config object
 config = context.config
 
-# Set the database URL from settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Set the database URL from settings (sync driver for Alembic)
+alembic_db_url = settings.APP_DATABASE_URL
+if "+aiomysql" in alembic_db_url:
+    alembic_db_url = alembic_db_url.replace("+aiomysql", "+pymysql")
+config.set_main_option("sqlalchemy.url", alembic_db_url)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

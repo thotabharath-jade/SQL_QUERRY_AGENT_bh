@@ -1,6 +1,6 @@
 """
 Database Setup Script
-Creates the MySQL database and runs migrations.
+Creates both MySQL databases (sqlquerrydb and sql_agent_db) and runs migrations.
 
 Usage:
     python setup_database.py
@@ -10,117 +10,93 @@ from sqlalchemy import create_engine, text
 import sys
 import os
 
-# Database connection settings
-MYSQL_HOST = "localhost"
-MYSQL_PORT = 3306
-MYSQL_USER = "root"
-MYSQL_PASSWORD = input("Enter your MySQL root password: ")
-DATABASE_NAME = "sql_agent_db"
-
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.core.config import settings
 
 
-def create_database():
-    """Create the database if it doesn't exist"""
-    print(f"Connecting to MySQL at {MYSQL_HOST}:{MYSQL_PORT}...")
-    
+def get_sync_url(async_url: str) -> str:
+    """Convert async URL to sync URL."""
+    return async_url.replace("+aiomysql", "+pymysql")
+
+
+def create_database(db_url: str, label: str):
+    """Create a database if it doesn't exist"""
+    from sqlalchemy.engine import make_url
+    url = make_url(get_sync_url(db_url))
+    database_name = url.database
+
+    print(f"Creating {label} database '{database_name}'...")
+
     try:
         connection = pymysql.connect(
-            host=MYSQL_HOST,
-            port=MYSQL_PORT,
-            user=MYSQL_USER,
-            password=MYSQL_PASSWORD,
+            host=url.host or "localhost",
+            port=url.port or 3306,
+            user=url.username or "root",
+            password=url.password or "",
             charset='utf8mb4'
         )
-        
+
         with connection.cursor() as cursor:
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DATABASE_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            print(f"Database '{DATABASE_NAME}' created or already exists.")
-        
+            cursor.execute(
+                f"CREATE DATABASE IF NOT EXISTS `{database_name}` "
+                "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            )
+            print(f"  '{database_name}' is ready.")
+
         connection.close()
         return True
-        
+
     except pymysql.err.OperationalError as e:
         print(f"Error connecting to MySQL: {e}")
         print("\nPlease make sure:")
         print("1. MySQL server is running")
-        print("2. You have entered the correct password")
-        print("3. MySQL is accessible at the specified host/port")
+        print("2. Credentials in .env are correct")
         return False
 
 
 def run_migrations():
-    """Run Alembic migrations"""
-    print("\nRunning Alembic migrations...")
-    
+    """Run Alembic migrations for the app database"""
+    print("\nRunning Alembic migrations on sqlquerrydb...")
+
     try:
         from alembic.config import Config
         from alembic import command
-        
+
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
         print("Migrations completed successfully!")
         return True
-        
+
     except Exception as e:
         print(f"Error running migrations: {e}")
         return False
-
-
-def verify_data():
-    """Verify that seed data was inserted"""
-    from app.core.database import SessionLocal
-    
-    db = SessionLocal()
-    try:
-        result = db.execute(text("SELECT COUNT(*) FROM departments")).scalar()
-        print(f"\nVerification: {result} departments found in database")
-        
-        result = db.execute(text("SELECT COUNT(*) FROM employees")).scalar()
-        print(f"Verification: {result} employees found in database")
-        
-        result = db.execute(text("SELECT COUNT(*) FROM products")).scalar()
-        print(f"Verification: {result} products found in database")
-        
-        result = db.execute(text("SELECT COUNT(*) FROM orders")).scalar()
-        print(f"Verification: {result} orders found in database")
-        
-        return True
-        
-    except Exception as e:
-        print(f"Error verifying data: {e}")
-        return False
-    finally:
-        db.close()
 
 
 def main():
     print("=" * 50)
     print("SQL Query Builder Agent - Database Setup")
     print("=" * 50)
-    
-    # Update DATABASE_URL in settings
-    global settings
-    settings.DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{DATABASE_NAME}"
-    
-    # Step 1: Create database
-    if not create_database():
+
+    # Step 1: Create app database (sqlquerrydb)
+    if not create_database(settings.APP_DATABASE_URL, "App"):
         sys.exit(1)
-    
-    # Step 2: Run migrations
+
+    # Step 2: Create default target database (sql_agent_db)
+    if not create_database(settings.DEFAULT_TARGET_DB_URL, "Default Target"):
+        sys.exit(1)
+
+    # Step 3: Run Alembic migrations (on sqlquerrydb)
     if not run_migrations():
         sys.exit(1)
-    
-    # Step 3: Verify
+
     print("\n" + "=" * 50)
     print("Setup completed successfully!")
     print("=" * 50)
     print("\nNext steps:")
-    print("1. Update .env file with your settings")
-    print("2. Start the server: uvicorn app.main:app --reload")
+    print("1. Run: python seed_database.py   (to populate sample data)")
+    print("2. Run: uvicorn app.main:app --reload")
     print("3. Visit http://localhost:8000/docs for API documentation")
 
 

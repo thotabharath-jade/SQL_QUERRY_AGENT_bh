@@ -4,13 +4,15 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_app_db
 from app.models.user import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -18,6 +20,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
+    # Password must be 30 characters or less
+    if len(password) > 30:
+        raise ValueError("Password must be 30 characters or less.")
     return pwd_context.hash(password)
 
 
@@ -42,20 +47,26 @@ def decode_token(token: str) -> Optional[dict]:
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_app_db)
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
     payload = decode_token(token)
     if payload is None:
         raise credentials_exception
+    
     user_id: int = payload.get("sub")
     if user_id is None:
         raise credentials_exception
-    user = db.query(User).filter(User.id == user_id).first()
+    
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    
     if user is None:
         raise credentials_exception
+    
     return user
