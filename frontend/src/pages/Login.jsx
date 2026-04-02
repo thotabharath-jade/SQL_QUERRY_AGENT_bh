@@ -1,4 +1,5 @@
 import { useState, useContext } from 'react'
+import {toast} from 'react-toastify'
 import { useNavigate, Link } from 'react-router-dom'
 import { authAPI } from '../services/api'
 import { AuthContext } from '../context/AuthContext'
@@ -19,9 +20,11 @@ function Login() {
     try {
       const response = await authAPI.login({ email, password })
       login(response.data.access_token)
+      toast.success('Login successful!')
       navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed')
+      toast.error('Login failed!')
     } finally {
       setLoading(false)
     }

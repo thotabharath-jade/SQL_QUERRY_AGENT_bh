@@ -3,6 +3,7 @@ import { useContext } from 'react'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import { ToastContainer } from "react-toastify";
 import { AuthProvider, AuthContext } from './context/AuthContext'
 
 function AppRoutes() {
@@ -36,6 +37,7 @@ function AppRoutes() {
           />
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
+        <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
       </div>
     </Router>
   )

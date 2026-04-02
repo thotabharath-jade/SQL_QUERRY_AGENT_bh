@@ -1,9 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect,useContext } from 'react'
+import {toast} from 'react-toastify'
 import { queryAPI, historyAPI } from '../services/api'
 import hljs from 'highlight.js'
+import {AuthContext} from '../context/AuthContext'
 import 'highlight.js/styles/github.css'
 import Schema from './Schema'
+import { Navigate } from 'react-router-dom'
 function Dashboard() {
+  const {isAuthenticated} = useContext(AuthContext)
   const [question, setQuestion] = useState('')
   const [response, setResponse] = useState(null)
   const [schema, setSchema] = useState(null)
@@ -46,13 +50,20 @@ function Dashboard() {
 
     try {
       const connStr = connectionMode === 'custom' ? connectionString : null;
-      const res = await queryAPI.askQuestion(question, connStr)
+      const res = await queryAPI.askQuestion(question, connStr)    
       setResponse(res.data)
       if(connectionMode==='custom'){
         fetchSchema(connStr) // Refresh schema if custom connection was used
       }
       loadHistory() // Refresh history
     } catch (err) {
+      if(err.response?.status === 401){
+        setError('Session expired. Please log in again.')
+        localStorage.removeItem('token')
+        toast.error("Session expired. Please login again.");
+        setTimeout(() => {window.location.href = '/login' }, 2000);
+      }
+
       setError(err.response?.data?.detail || 'Failed to get response')
     } finally {
       setLoading(false)
@@ -72,7 +83,6 @@ function Dashboard() {
       console.error('Failed to toggle bookmark', err)
     }
   }
-
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar - History */}
