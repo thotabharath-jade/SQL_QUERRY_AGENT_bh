@@ -78,7 +78,8 @@ async def ask_question(
                 user_id=current_user.id,
                 natural_question=request.question,
                 generated_sql="",
-                error_message=llm_result.get("error", "Failed to generate SQL")
+                error_message=llm_result.get("error", "Failed to generate SQL"),
+                explanation=explanation
             )
             app_db.add(history)
             await app_db.commit()
@@ -98,7 +99,8 @@ async def ask_question(
                 user_id=current_user.id,
                 natural_question=request.question,
                 generated_sql=generated_sql,
-                error_message=error_msg
+                error_message=error_msg,
+                explanation=explanation
             )
             app_db.add(history)
             await app_db.commit()
@@ -127,6 +129,7 @@ async def ask_question(
             natural_question=request.question,
             generated_sql=generated_sql,
             execution_result=json.dumps(result_rows, cls=CustomJSONEncoder),
+            explanation=explanation,
             error_message=exec_result.get("error") if not exec_result.get("success") else None
         )
         app_db.add(history)

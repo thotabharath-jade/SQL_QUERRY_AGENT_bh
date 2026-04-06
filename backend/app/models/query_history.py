@@ -15,5 +15,6 @@ class QueryHistory(Base):
     error_message = Column(Text, nullable=True)
     is_bookmarked = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    explanation = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="query_history")

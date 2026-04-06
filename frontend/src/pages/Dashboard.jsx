@@ -10,9 +10,9 @@ function Dashboard() {
   const { isAuthenticated } = useContext(AuthContext);
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState({
-    result: null,
+    result: [],
     sql: "",
-    explanation: "",
+    explanation: "No explanation available",
     error: "",
   });
   const [schema, setSchema] = useState(null);
@@ -124,12 +124,14 @@ function Dashboard() {
               className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
               onClick={() => {
                 setQuestion(item.natural_question);
+                console.log("History item clicked:", item);
                 setResponse({
                   sql: item.generated_sql,
                   result: item.execution_result
                     ? JSON.parse(item.execution_result)
-                    : null,
+                    : [],
                   error: item.error_message,
+                  explanation: item.explanation || "No explanation available",
                 });
               }}
             >
@@ -251,6 +253,19 @@ function Dashboard() {
                   </button>
                 </div>
               </form>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">
+                  Generated SQL:
+                </h3>
+                <code
+                  className="block bg-gray-100 p-4 rounded mb-2 overflow-x-auto text-sm text-gray-800"
+                  dangerouslySetInnerHTML={{
+                    __html: response?.sql
+                      ? hljs.highlight(response.sql, { language: "sql" }).value
+                      : '<span class="text-gray-500">No SQL generated</span>',
+                  }}
+                />
+              </div>
               {/* Query Explanation */}
               <div className="bg-white p-6 rounded-lg shadow overflow-hidden">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">
@@ -314,7 +329,7 @@ function Dashboard() {
      {/* Query Result */}
     
         <div className="bg-gray-50 border-l border-gray-200 p-6 overflow-y-auto flex flex-col m-20">
-        <Table response={response} />
+        <Table response={response?.result} />
         </div>
       </div>
   );
