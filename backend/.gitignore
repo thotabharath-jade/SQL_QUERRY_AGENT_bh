@@ -24,3 +24,4 @@ alembic/versions/*.py
 
 # Mac
 .DS_Store
+
