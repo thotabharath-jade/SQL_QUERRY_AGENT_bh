@@ -10,13 +10,15 @@ class QueryHistoryBase(BaseModel):
 class QueryHistoryCreate(QueryHistoryBase):
     generated_sql: str
     execution_result_json: Optional[Any] = None
+    explanation: str
 
 
 class QueryHistoryResponse(QueryHistoryBase):
     id: int
     user_id: int
     generated_sql: str
-    execution_result_json: Optional[Any] = None
+    explanation: str
+    execution_result: Optional[Any] = None
     is_bookmarked: bool
     created_at: datetime
 

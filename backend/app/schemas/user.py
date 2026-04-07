@@ -57,6 +57,7 @@ class QueryHistoryResponse(QueryHistoryBase):
     error_message: Optional[str]
     is_bookmarked: bool
     created_at: datetime
+    explanation: Optional[str] = None
 
     class Config:
         from_attributes = True
