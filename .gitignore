@@ -130,3 +130,21 @@ cython_debug/
 
 # VS Code
 .vscode/
+
+# Playwright / local E2E SQLite
+backend/e2e_app.db
+backend/e2e_target.db
+playwright-report/
+test-results/
+
+# Root npm (Playwright)
+node_modules/
+
+# Test output files (temporary/debug)
+backend/*_out*.txt
+backend/error.txt
+backend/safe_utf8.txt
+backend/test_output.txt
+backend/test_results.txt
+backend/auth_*.txt
+QA_AI_INSTRUCTIONS.md
